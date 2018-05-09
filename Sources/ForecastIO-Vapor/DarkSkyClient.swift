@@ -7,8 +7,7 @@
 //
 
 import Foundation
-import HTTP
-import Service
+import Vapor
 
 /// A class to interact with the Dark Sky API.
 open class DarkSkyClient : Service {
@@ -33,16 +32,14 @@ open class DarkSkyClient : Service {
         apiKey = key
     }
 
-    open func getWeather(latitude lat: Double, longitude lon: Double, time: Date?, excludeFields: [Forecast.Field] = [], extendHourly: Bool = false, worker: Worker) throws -> Future<Forecast> {
+    open func getWeather(latitude lat: Double, longitude lon: Double, time: Date?, excludeFields: [Forecast.Field] = [], extendHourly: Bool = false, container: Container) throws -> Future<Forecast> {
 
         let url = buildForecastURL(latitude: lat, longitude: lon, time: time, extendHourly: extendHourly, excludeFields: excludeFields)
 
-        let forecast: Future<Forecast> = HTTPClient.connect(scheme: .https, hostname: hostname, on: worker).flatMap(to: HTTPResponse.self) { client in
-            let httpReq = HTTPRequest(method: .GET, url: url)
-            return client.send(httpReq)
-            }.flatMap(to: Data.self) { res in
-                return res.body.consumeData(on: worker)
-            }.map(to: Forecast.self) { data in
+        let client = try container.client()
+        let forecast: Future<Forecast> =  client.get(url)
+        .map(to: Forecast.self) { res in
+                let data = res.body.data
                 let jsonDecoder = JSONDecoder()
                 jsonDecoder.dateDecodingStrategy = .secondsSince1970
                 return try jsonDecoder.decode(Forecast.self, from: data)
